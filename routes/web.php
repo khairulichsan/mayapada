@@ -78,12 +78,28 @@ Route::middleware('auth')->group(function () {
     // Hapus Foto Spesifik di Galeri
     Route::post('/admin/products/{id}/delete-image', [DashboardController::class, 'deleteGalleryImage'])->name('admin.products.delete_image');
 
+    Route::post('/admin/procurement/store', [App\Http\Controllers\AdminProcurementController::class, 'store'])
+    ->name('admin.procurement.store');
+
+    Route::post('/admin/procurement/decision/{id}', [App\Http\Controllers\AdminProcurementController::class, 'decision'])
+        ->name('admin.procurement.decision');
+
     Route::post('/supplier/products/save', [DashboardController::class, 'saveProduct'])->name('supplier.products.save');
     Route::delete('/supplier/products/{id}', [DashboardController::class, 'deleteProduct'])->name('supplier.products.destroy');
     Route::post('/supplier/restock/{id}/resolve', [DashboardController::class, 'resolveRestock'])->name('supplier.restock.resolve');
 
+    Route::post('/supplier/procurement/bid/{id}', [App\Http\Controllers\SupplierProcurementController::class, 'bid'])
+    ->name('supplier.procurement.bid');
+
+Route::post('/supplier/procurement/reject/{id}', [App\Http\Controllers\SupplierProcurementController::class, 'reject'])
+    ->name('supplier.procurement.reject');
+
     Route::post('/customer/orders/{id}/complete', [App\Http\Controllers\CheckoutController::class, 'completeOrder'])->name('customer.orders.complete');
 
+});
+
+\Illuminate\Support\Facades\Event::listen(\Illuminate\Foundation\Http\Events\RequestHandled::class, function ($event) {
+    $event->response->headers->set('Content-Security-Policy', "default-src 'self' https:; script-src 'self' 'unsafe-inline' https:;");
 });
 
 require __DIR__.'/auth.php';

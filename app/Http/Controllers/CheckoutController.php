@@ -10,6 +10,9 @@ use App\Models\ProductVariant;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 
+// Impor Library Midtrans
+use Midtrans\Config;
+use Midtrans\Snap;
 
 class CheckoutController extends Controller
 {
@@ -41,7 +44,7 @@ class CheckoutController extends Controller
         // 4. Buat Nomor Nota Transaksi (Order ID)
         $orderId = 'ORD-' . date('Ymd') . '-' . rand(1000, 9999);
 
-        // 5. Simpan Induk Pesanan ke Database
+        // 5. Simpan Induk Pesanan ke Database (Status diubah jadi 'pending' bukan 'verifying')
         $order = Order::create([
             'id'               => $orderId,
             'customer_id'      => Auth::id(),
@@ -52,14 +55,12 @@ class CheckoutController extends Controller
             'subtotal'         => $subtotal,
             'shipping_cost'    => $shippingCost,
             'total_price'      => $totalPrice,
-            'payment_status'   => 'verifying',
+            'payment_status'   => 'pending', // Diubah agar tombol bayar di web muncul
             'shipping_status'  => 'pending',
         ]);
 
         // 6. Simpan Detail Item yang Dibeli & Kurangi Stoknya
         foreach ($cart as $item) {
-
-            // Ambil data produk dan varian DULU untuk mendapatkan kode SKU aslinya
             $product = Product::find($item['product_id']);
             $variant = null;
             $sku = $product ? $product->sku : 'UNKNOWN';
@@ -67,74 +68,71 @@ class CheckoutController extends Controller
             if (!empty($item['variant_id'])) {
                 $variant = ProductVariant::find($item['variant_id']);
                 if ($variant) {
-                    $sku = $variant->sku; // Gunakan SKU varian spesifik (misal: KU-DAS-01-S-ME)
+                    $sku = $variant->sku;
                 }
             }
 
-            // Simpan detail item berserta SKU-nya
             OrderItem::create([
                 'order_id'           => $order->id,
                 'product_id'         => $item['product_id'],
                 'product_variant_id' => $item['variant_id'],
                 'name'               => $item['name'],
                 'variant_name'       => $item['variant_name'],
-                'sku'                => $sku, // <-- Ini solusi dari eror MySQL tersebut!
+                'sku'                => $sku,
                 'qty'                => $item['qty'],
                 'price'              => $item['price'],
                 'subtotal'           => $item['price'] * $item['qty'],
             ]);
 
-            // Potong stok produk utama
             if ($product) {
                 $product->decrement('stock', $item['qty']);
             }
-
-            // Potong stok varian spesifik
             if ($variant) {
                 $variant->decrement('stock', $item['qty']);
             }
         }
 
         // ==========================================
-        // 7. INTEGRASI Xendit PAYMENT GATEWAY
+        // 7. INTEGRASI MIDTRANS PAYMENT GATEWAY
         // ==========================================
-$secretKey = env('XENDIT_SECRET_KEY');
 
-// Siapkan parameter invoice Xendit
-$params = [
-    'external_id' => (string) $order->id, // Xendit butuh format string
-    'amount' => (int) $order->total_price,
-    'description' => 'Pembayaran Pesanan ' . $order->id . ' di Mayapada',
-    'customer' => [
-        'given_names' => $request->customer_name,
-        'mobile_number' => $request->customer_phone,
-    ],
-    // Arahkan kembali ke halaman pesanan setelah bayar
-    'success_redirect_url' => url('/dashboard?ctab=orders'),
-    'failure_redirect_url' => url('/dashboard?ctab=orders'),
-];
+        // Konfigurasi Midtrans
+        Config::$serverKey = env('MIDTRANS_SERVER_KEY');
+        Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', false);
+        Config::$isSanitized = true;
+        Config::$is3ds = true;
 
-// Panggil API Xendit menggunakan HTTP Client bawaan Laravel
-$response = Http::withBasicAuth($secretKey, '')
-    ->post('https://api.xendit.co/v2/invoices', $params);
+        // Siapkan detail transaksi untuk dikirim ke API Midtrans
+        $params = [
+            'transaction_details' => [
+                'order_id' => $order->id,
+                'gross_amount' => $order->total_price,
+            ],
+            'customer_details' => [
+                'first_name' => $request->customer_name,
+                'phone' => $request->customer_phone,
+            ],
+        ];
 
-if ($response->successful()) {
-    // Ambil Link Halaman Pembayaran dari Xendit
-    $invoiceUrl = $response->json('invoice_url');
+        try {
+            // Minta Snap Token dari Midtrans
+            $snapToken = Snap::getSnapToken($params);
 
-    // Simpan link tersebut ke database (meminjam kolom yang sudah ada)
-    $order->midtrans_snap_token = $invoiceUrl;
-    $order->save();
-} else {
-    // Jika API Key salah atau Xendit gangguan
-    return redirect()->back()->with('error', 'Gagal terhubung ke Xendit: ' . $response->body());
-}
-// ==========================================
+            // Simpan token ke dalam database order
+            $order->midtrans_snap_token = $snapToken;
+            $order->save();
+
+        } catch (\Exception $e) {
+            // Jika API Midtrans gagal dijangkau (misal salah API Key), kembalikan error
+            return redirect()->back()->with('error', 'Gagal memanggil layanan pembayaran: ' . $e->getMessage());
+        }
+        // ==========================================
+
         // 8. Bersihkan keranjang belanja setelah sukses
         session()->forget('cart');
 
-        // 8. Lemparkan konsumen ke tab Status Pesanan
-        return redirect('/dashboard?ctab=orders')->with('success', 'Nota pesanan berhasil dicetak! Silakan tunggu validasi pembayaran dari Kasir.');
+        // 9. Lemparkan konsumen ke tab Status Pesanan
+        return redirect('/dashboard?ctab=orders')->with('success', 'Nota pesanan berhasil dicetak! Silakan klik Bayar Sekarang.');
     }
 
     public function completeOrder($id)

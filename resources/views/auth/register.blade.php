@@ -54,7 +54,7 @@
                     <div class="space-y-1.5">
                         <label for="name" class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Lengkap</label>
                         <input id="name" type="text" name="name" required placeholder="Nama lengkap Anda" value="{{ old('name') }}" class="w-full bg-white border border-slate-400 rounded-xl px-4 py-3 text-xs font-medium text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none">
-                        <x-input-error :messages="$errors->get('name')" class="mt-2 text-rose-600 font-bold text-[10px]" />
+                        <x-input-error :messages="$errors->get('name')"     class="mt-2 text-rose-600 font-bold text-[10px]" />
                     </div>
 
                     <div class="space-y-1.5">
