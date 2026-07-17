@@ -421,7 +421,7 @@
             💸 Bayar di Xendit
         </a>
     </div>
-@endi
+@endif
                                 </div>
                             </div>
                         </div>
