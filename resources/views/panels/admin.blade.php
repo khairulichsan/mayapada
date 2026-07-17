@@ -271,10 +271,15 @@
 
         </div>
     @elseif($activeTab === 'stock')
-        <div class="space-y-6">
-            <div>
-                <h2 class="text-base font-bold text-gray-900 tracking-tight">Audit Stok &amp; Purchase Order (PO) Pengadaan</h2>
-                <p class="text-gray-400 text-xs mt-0.5">Pantau jumlah inventaris baju daster/batik secara integral. Kirim pesanan restock langsung ke lapak Supplier.</p>
+        <div class="space-y-6" x-data="{ openRequestModal: false }">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-base font-bold text-gray-900 tracking-tight">Audit Stok &amp; Purchase Order (PO) Pengadaan</h2>
+                    <p class="text-gray-400 text-xs mt-0.5">Pantau jumlah inventaris baju daster/batik secara integral. Kirim pesanan restock langsung ke lapak Supplier.</p>
+                </div>
+                <button @click="openRequestModal = true" type="button" class="bg-indigo-600 hover:bg-slate-900 text-white font-black text-xs px-5 py-3.5 rounded-xl uppercase tracking-widest transition-all cursor-pointer shadow-md shrink-0 flex items-center gap-2">
+                    <span>➕</span> Request Pakaian Baru
+                </button>
             </div>
 
             <div class="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
@@ -318,7 +323,59 @@
                 </table>
             </div>
 
-            <div class="pt-4 space-y-3">
+            <div class="pt-6 space-y-3">
+                <h3 class="font-extrabold text-slate-950 text-xs uppercase tracking-widest">Log Permintaan Kustom (Admin RFQ)</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    @forelse($procurementRequests ?? [] as $req)
+                        <div class="bg-white border border-slate-200 p-5 rounded-2xl text-xs space-y-3 shadow-xs">
+                            <div class="flex justify-between items-center">
+                                <span class="font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">REQ-{{ $req->id }}</span>
+
+                                @if($req->status === 'pending')
+                                    <span class="text-amber-600 text-[10px] font-black uppercase tracking-wider">⏳ Menunggu Respon</span>
+                                @elseif($req->status === 'supplier_bid')
+                                    <span class="text-indigo-600 text-[10px] font-black uppercase tracking-wider">💡 Ada Penawaran</span>
+                                @elseif($req->status === 'po_created')
+                                    <span class="text-emerald-600 text-[10px] font-black uppercase tracking-wider">✓ PO Diterbitkan</span>
+                                @else
+                                    <span class="text-rose-600 text-[10px] font-black uppercase tracking-wider">✕ Ditolak</span>
+                                @endif
+                            </div>
+
+                            <div class="space-y-1">
+                                <p class="font-black text-sm text-slate-900 uppercase">{{ $req->request_title }}</p>
+                                <p class="text-slate-500 font-semibold">Spesifikasi: <span class="text-slate-800 font-extrabold">Warna {{ $req->color }} / Size {{ $req->size }}</span></p>
+                                <p class="text-slate-500 font-semibold">Kebutuhan Toko: <span class="font-mono text-slate-900 font-black">{{ $req->qty_requested }} Pcs</span></p>
+                            </div>
+
+                            @if($req->status === 'supplier_bid')
+                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2 mt-2">
+                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Penawaran Masuk:</p>
+                                    <p class="font-bold text-slate-800">Diajukan oleh: <span class="text-indigo-600 uppercase">{{ $req->responder->brand_name ?? 'Supplier' }}</span></p>
+                                    <p class="font-bold text-slate-800">Harga Ditawarkan: <span class="font-mono text-emerald-600 font-black">Rp {{ number_format($req->offered_price, 0, ',', '.') }} / pcs</span></p>
+
+                                    <div class="flex gap-2 pt-1">
+                                        <form action="{{ route('admin.procurement.decision', $req->id) }}" method="POST" class="flex-1">
+                                            @csrf
+                                            <input type="hidden" name="decision" value="approve">
+                                            <button type="submit" class="w-full bg-slate-900 hover:bg-emerald-600 text-white font-black text-[10px] py-2 rounded-lg uppercase tracking-wider transition-colors cursor-pointer text-center">Setujui &amp; PO</button>
+                                        </form>
+                                        <form action="{{ route('admin.procurement.decision', $req->id) }}" method="POST">
+                                            @csrf
+                                            <input type="hidden" name="decision" value="reject">
+                                            <button type="submit" class="bg-rose-50 hover:bg-rose-500 text-rose-700 hover:text-white border border-rose-200 font-black text-[10px] py-2 px-3 rounded-lg uppercase tracking-wider transition-all cursor-pointer">Batal</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+                    @empty
+                        <p class="text-slate-400 text-xs italic font-semibold col-span-2">Belum ada rekam request pakaian kustom yang diajukan ke supplier.</p>
+                    @endforelse
+                </div>
+            </div>
+
+            <div class="pt-6 space-y-3 border-t border-slate-100">
                 <h3 class="font-extrabold text-slate-950 text-xs uppercase tracking-widest">Alur Pengadaan Terkirim (PO Log)</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     @forelse($restockOrders as $ro)
@@ -339,6 +396,60 @@
                     @empty
                         <p class="text-slate-400 text-xs italic font-semibold">Belum ada rekam PO pengadaan yang diajukan.</p>
                     @endforelse
+                </div>
+            </div>
+
+            <div x-show="openRequestModal" style="display: none;" class="fixed inset-0 flex items-center justify-center p-4 z-[999] bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+                <div class="bg-white rounded-[2rem] border border-slate-300 max-w-md w-full p-8 space-y-4 shadow-2xl text-left" @click.away="openRequestModal = false">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <h3 class="text-base font-black text-slate-900 uppercase font-sans">Form Request Pakaian ke Supplier</h3>
+                        <button type="button" @click="openRequestModal = false" class="text-slate-400 hover:text-rose-500 text-lg font-black transition-colors">✕</button>
+                    </div>
+
+                    <form action="{{ route('admin.procurement.store') }}" method="POST" class="space-y-4">
+                        @csrf
+
+                        <div class="space-y-1">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Judul Model Pakaian</label>
+                            <input type="text" name="request_title" required placeholder="Contoh: Polo Shirt Polos, Daster Arab" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="space-y-1">
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Warna Diminta</label>
+                                <input type="text" name="color" required placeholder="Contoh: Hitam" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Ukuran (Size)</label>
+                                <select name="size" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-black uppercase text-slate-900 focus:ring-2 focus:ring-indigo-600">
+                                    <option value="S">S</option>
+                                    <option value="M" selected>M</option>
+                                    <option value="L">L</option>
+                                    <option value="XL">XL</option>
+                                    <option value="XXL">XXL</option>
+                                    <option value="ALL SIZE">All Size</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="col-span-1 space-y-1">
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Qty (Pcs)</label>
+                                <input type="number" name="qty_requested" value="10" min="1" required class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-indigo-600 text-center">
+                            </div>
+                            <div class="col-span-2 space-y-1">
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Target Supplier Partner</label>
+                                <select name="target_supplier_id" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 uppercase focus:ring-2 focus:ring-indigo-600">
+                                    <option value="">📢 BROADCAST KE SEMUA</option>
+                                    @foreach($users->where('role', 'supplier') as $spl)
+                                        <option value="{{ $spl->id }}">{{ $spl->brand_name ?? $spl->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-slate-900 hover:bg-indigo-600 text-white font-black py-3.5 rounded-xl text-xs uppercase tracking-widest transition-all mt-4 shadow-md">📢 Kirim Permintaan Pasokan</button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -383,7 +494,7 @@
                 <p class="text-slate-400 text-xs mt-0.5 font-semibold">Tinjau pasokan masuk dari Supplier, hitung margin, pasang varian ukuran/warna, lalu tentukan harga jual eceran Anda.</p>
             </div>
 
-            <div class="bg-white border border-slate-300 rounded-[2rem] overflow-hidden shadow-sm">
+            <div class="bg-white border border-slate-300 rounded-[2rem]     overflow-hidden shadow-sm">
                 <table class="w-full text-left border-collapse text-xs">
                     <thead>
                         <tr class="border-b border-slate-300 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 p-4">

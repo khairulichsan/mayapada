@@ -54,14 +54,21 @@ class DashboardController extends Controller
             $reportSums['cost'] += $itemVal * 0.75;
             $reportSums['profit'] += $itemVal * 0.25;
         }
+        $procurementRequests = \App\Models\ProcurementRequest::with('responder')
+    ->orderBy('created_at', 'desc')
+    ->get();
 
         return view('dashboard', compact(
             'activeTab', 'stab', 'products', 'categories', 'orders', 'users', 'restockOrders',
             'grossRevenue', 'cogs', 'netProfit', 'pendingPayments', 'pendingShipments', 'lowStockItems',
-            'reportMonth', 'reportYear', 'reportTransactions', 'reportSums'
+            'reportMonth', 'reportYear', 'reportTransactions', 'reportSums',
+            'procurementRequests'
         ));
     }
 
+    /**
+     * PROSEDUR SUPPLIER: Kirim spek baju & Harga Grosir (Lusin/Bal) + Upload Gambar Asli
+     */
     /**
      * PROSEDUR SUPPLIER: Kirim spek baju & Harga Grosir (Lusin/Bal) + Upload Gambar Asli
      */
@@ -72,9 +79,10 @@ class DashboardController extends Controller
             'sku'             => 'required|string|unique:products,sku,' . $request->id,
             'category_id'     => 'required|exists:categories,id',
             'wholesale_price' => 'required|numeric|min:1000',
-            'wholesale_unit'  => 'required|string|in:lusin,kodi,bal',
+            'wholesale_unit'  => 'required|string|in:pcs,lusin,kodi,bal', // <-- PERBAIKAN 1: Tambahkan 'pcs' agar lolos validasi
+            'stock'           => 'required|integer|min:1',                // <-- PERBAIKAN 2: Wajibkan input stok
             'description'     => 'nullable|string',
-            'image'           => 'nullable|image|mimes:jpeg,png,jpg|max:2048', // Validasi file gambar asli
+            'image'           => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
         $user = Auth::user();
@@ -85,7 +93,7 @@ class DashboardController extends Controller
             $file = $request->file('image');
             $filename = time() . '_' . Str::slug($request->name) . '.' . $file->getClientOriginalExtension();
             $file->storeAs('products', $filename, 'public');
-            $imagePath = asset('storage/products/' . $filename); // Menghasilkan link lokal yang valid
+            $imagePath = asset('storage/products/' . $filename);
         }
 
         // Menyimpan ke MySQL, otomatis dikunci is_published = false (Draft) sebelum divalidasi Admin
@@ -100,6 +108,7 @@ class DashboardController extends Controller
                 'category_id'     => $request->category_id,
                 'wholesale_price' => $request->wholesale_price,
                 'wholesale_unit'  => $request->wholesale_unit,
+                'stock'           => $request->stock,         // <-- PERBAIKAN 3: Simpan nilai stok ke database
                 'description'     => $request->description,
                 'image_path'      => $imagePath,
                 'is_published'    => false

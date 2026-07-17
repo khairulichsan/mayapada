@@ -410,6 +410,16 @@
                                             Menunggu Validasi Administrasi
                                         </div>
                                     @endif
+                                    @if($order->payment_status === 'pending' && $order->snap_token)
+    <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-xl flex flex-col items-center justify-center gap-2 shadow-sm">
+        <span class="text-indigo-700 font-black text-xs uppercase tracking-wider text-center">
+            Menunggu Pembayaran
+        </span>
+        <button type="button" onclick="window.snap.pay('{{ $order->snap_token }}')" class="bg-indigo-600 hover:bg-slate-900 text-white font-black text-[10px] px-5 py-2.5 rounded-lg uppercase tracking-widest transition-all shadow-md cursor-pointer">
+            💸 Bayar Sekarang
+        </button>
+    </div>
+@endif
                                 </div>
                             </div>
                         </div>
@@ -442,3 +452,4 @@
     </a>
 </div>
 </div>
+<script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="{{ env('MIDTRANS_CLIENT_KEY') }}"></script>
