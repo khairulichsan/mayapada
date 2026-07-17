@@ -30,16 +30,24 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // 1. Tambahkan aturan validasi untuk field baru
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'contact' => ['nullable', 'string', 'max:20'],
+            'role' => ['nullable', 'string', 'in:supplier,consumer'],
+            'brand_name' => ['nullable', 'required_if:role,supplier', 'string', 'max:255'],
         ]);
 
+        // 2. Simpan semua data ke database
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'contact' => $request->contact,
+            'brand_name' => $request->brand_name,
+            'role' => $request->role ?? 'consumer', // Jika role kosong, otomatis jadi consumer
         ]);
 
         event(new Registered($user));

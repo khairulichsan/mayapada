@@ -8,6 +8,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 
 
 class CheckoutController extends Controller
@@ -94,7 +95,42 @@ class CheckoutController extends Controller
             }
         }
 
-        // 7. Bersihkan keranjang belanja setelah sukses
+        // ==========================================
+        // 7. INTEGRASI Xendit PAYMENT GATEWAY
+        // ==========================================
+$secretKey = env('XENDIT_SECRET_KEY');
+
+// Siapkan parameter invoice Xendit
+$params = [
+    'external_id' => (string) $order->id, // Xendit butuh format string
+    'amount' => (int) $order->total_price,
+    'description' => 'Pembayaran Pesanan ' . $order->id . ' di Mayapada',
+    'customer' => [
+        'given_names' => $request->customer_name,
+        'mobile_number' => $request->customer_phone,
+    ],
+    // Arahkan kembali ke halaman pesanan setelah bayar
+    'success_redirect_url' => url('/dashboard?ctab=orders'),
+    'failure_redirect_url' => url('/dashboard?ctab=orders'),
+];
+
+// Panggil API Xendit menggunakan HTTP Client bawaan Laravel
+$response = Http::withBasicAuth($secretKey, '')
+    ->post('https://api.xendit.co/v2/invoices', $params);
+
+if ($response->successful()) {
+    // Ambil Link Halaman Pembayaran dari Xendit
+    $invoiceUrl = $response->json('invoice_url');
+
+    // Simpan link tersebut ke database (meminjam kolom yang sudah ada)
+    $order->midtrans_snap_token = $invoiceUrl;
+    $order->save();
+} else {
+    // Jika API Key salah atau Xendit gangguan
+    return redirect()->back()->with('error', 'Gagal terhubung ke Xendit: ' . $response->body());
+}
+// ==========================================
+        // 8. Bersihkan keranjang belanja setelah sukses
         session()->forget('cart');
 
         // 8. Lemparkan konsumen ke tab Status Pesanan

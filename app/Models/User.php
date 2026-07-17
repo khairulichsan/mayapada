@@ -22,6 +22,9 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'contact',     // Tambahkan baris ini
+        'brand_name',  // Tambahkan baris ini
+        'role',        // Tambahkan baris ini
     ];
 
     /**
