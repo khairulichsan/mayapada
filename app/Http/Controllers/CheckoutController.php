@@ -8,6 +8,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 
 // Impor Library Midtrans
 use Midtrans\Config;
@@ -92,40 +93,40 @@ class CheckoutController extends Controller
         }
 
         // ==========================================
-        // 7. INTEGRASI MIDTRANS PAYMENT GATEWAY
-        // ==========================================
+// 7. INTEGRASI XENDIT PAYMENT GATEWAY
+// ==========================================
+$secretKey = env('XENDIT_SECRET_KEY');
 
-        // Konfigurasi Midtrans
-        Config::$serverKey = env('MIDTRANS_SERVER_KEY');
-        Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', false);
-        Config::$isSanitized = true;
-        Config::$is3ds = true;
+// Siapkan parameter invoice Xendit
+$params = [
+    'external_id' => (string) $order->id, // Xendit butuh format string
+    'amount' => (int) $order->total_price,
+    'description' => 'Pembayaran Pesanan ' . $order->id . ' di Mayapada',
+    'customer' => [
+        'given_names' => $request->customer_name,
+        'mobile_number' => $request->customer_phone,
+    ],
+    // Arahkan kembali ke halaman pesanan setelah bayar
+    'success_redirect_url' => url('/dashboard?ctab=orders'),
+    'failure_redirect_url' => url('/dashboard?ctab=orders'),
+];
 
-        // Siapkan detail transaksi untuk dikirim ke API Midtrans
-        $params = [
-            'transaction_details' => [
-                'order_id' => $order->id,
-                'gross_amount' => $order->total_price,
-            ],
-            'customer_details' => [
-                'first_name' => $request->customer_name,
-                'phone' => $request->customer_phone,
-            ],
-        ];
+// Panggil API Xendit menggunakan HTTP Client bawaan Laravel
+$response = Http::withBasicAuth($secretKey, '')
+    ->post('https://api.xendit.co/v2/invoices', $params);
 
-        try {
-            // Minta Snap Token dari Midtrans
-            $snapToken = Snap::getSnapToken($params);
+if ($response->successful()) {
+    // Ambil Link Halaman Pembayaran dari Xendit
+    $invoiceUrl = $response->json('invoice_url');
 
-            // Simpan token ke dalam database order
-            $order->midtrans_snap_token = $snapToken;
-            $order->save();
-
-        } catch (\Exception $e) {
-            // Jika API Midtrans gagal dijangkau (misal salah API Key), kembalikan error
-            return redirect()->back()->with('error', 'Gagal memanggil layanan pembayaran: ' . $e->getMessage());
-        }
-        // ==========================================
+    // Simpan link tersebut ke database (meminjam kolom yang sudah ada)
+    $order->midtrans_snap_token = $invoiceUrl;
+    $order->save();
+} else {
+    // Jika API Key salah atau Xendit gangguan
+    return redirect()->back()->with('error', 'Gagal terhubung ke Xendit: ' . $response->body());
+}
+// ==========================================
 
         // 8. Bersihkan keranjang belanja setelah sukses
         session()->forget('cart');

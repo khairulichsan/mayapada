@@ -8,35 +8,33 @@ use App\Models\Order;
 class PaymentController extends Controller
 {
     /**
-     * Endpoint Webhook / Callback untuk menerima laporan lunas otomatis dari Midtrans
+     * Endpoint Webhook / Callback untuk menerima laporan lunas otomatis dari Xendit
      */
     public function callback(Request $request)
     {
-        $serverKey = env('MIDTRANS_SERVER_KEY');
+        $xenditToken = env('XENDIT_CALLBACK_TOKEN');
 
-        // 1. Membuat kunci kecocokan (Signature Key) untuk keamanan sistem
-        $hashed = hash("sha512", $request->order_id . $request->status_code . $request->gross_amount . $serverKey);
+        // 1. Validasi Keamanan: Pastikan yang mengirim data benar-benar server Xendit
+        if ($request->header('x-callback-token') !== $xenditToken) {
+            return response()->json(['status' => 'error', 'message' => 'Token Verifikasi Tidak Valid'], 403);
+        }
 
-        // 2. Validasi keabsahan data: Pastikan sinyal ini murni dari Midtrans, bukan hacker
-        if ($hashed === $request->signature_key) {
+        // 2. Cek apakah status tagihan dari Xendit adalah LUNAS (PAID)
+        if ($request->status === 'PAID') {
 
-            // 3. Cek apakah transaksinya sukses (settlement / capture)
-            if ($request->transaction_status === 'settlement' || $request->transaction_status === 'capture') {
+            // 3. Cari order berdasarkan external_id (Nomor Nota yang kita kirim ke Xendit)
+            $order = Order::find($request->external_id);
 
-                // 4. Cari data order berdasarkan ID yang dikirim Midtrans
-                $order = Order::find($request->order_id);
-
-                if ($order) {
-                    // 5. Update database Anda menjadi LUNAS dan SIAP DIKEMAS
-                    $order->update([
-                        'payment_status' => 'paid',
-                        'shipping_status' => 'processing'
-                    ]);
-                }
+            if ($order) {
+                // 4. Update status di database Anda menjadi LUNAS dan SIAP DIKEMAS
+                $order->update([
+                    'payment_status' => 'paid',
+                    'shipping_status' => 'processing'
+                ]);
             }
         }
 
-        // Beri respon balik ke Midtrans bahwa laporan sudah diterima dengan baik
-        return response()->json(['status' => 'success', 'message' => 'Callback processed']);
+        // Beri respon 200 OK ke Xendit agar mereka tidak mengirim notifikasi berulang
+        return response()->json(['status' => 'success', 'message' => 'Webhook Xendit berhasil diproses']);
     }
 }
