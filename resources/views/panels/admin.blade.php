@@ -277,9 +277,9 @@
                     <h2 class="text-base font-bold text-gray-900 tracking-tight">Audit Stok &amp; Purchase Order (PO) Pengadaan</h2>
                     <p class="text-gray-400 text-xs mt-0.5">Pantau jumlah inventaris baju daster/batik secara integral. Kirim pesanan restock langsung ke lapak Supplier.</p>
                 </div>
-                <button @click="openRequestModal = true" type="button" class="bg-indigo-600 hover:bg-slate-900 text-white font-black text-xs px-5 py-3.5 rounded-xl uppercase tracking-widest transition-all cursor-pointer shadow-md shrink-0 flex items-center gap-2">
-                    <span>➕</span> Request Pakaian Baru
-                </button>
+                <button onclick="document.getElementById('requestModal').classList.remove('hidden')" type="button" class="bg-indigo-600 hover:bg-slate-900 text-white font-black text-xs px-5 py-3.5 rounded-xl uppercase tracking-widest transition-all cursor-pointer shadow-md shrink-0 flex items-center gap-2">
+    <span>➕</span> Request Pakaian Baru
+</button>
             </div>
 
             <div class="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
@@ -399,59 +399,62 @@
                 </div>
             </div>
 
-            <div x-show="openRequestModal" style="display: none;" class="fixed inset-0 flex items-center justify-center p-4 z-[999] bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-                <div class="bg-white rounded-[2rem] border border-slate-300 max-w-md w-full p-8 space-y-4 shadow-2xl text-left" @click.away="openRequestModal = false">
-                    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                        <h3 class="text-base font-black text-slate-900 uppercase font-sans">Form Request Pakaian ke Supplier</h3>
-                        <button type="button" @click="openRequestModal = false" class="text-slate-400 hover:text-rose-500 text-lg font-black transition-colors">✕</button>
-                    </div>
+            <div id="requestModal" class="fixed inset-0 flex items-center justify-center p-4 z-[999] bg-slate-900/40 backdrop-blur-sm animate-fade-in hidden">
+    <!-- Wrapper ini untuk mendeteksi klik di luar kotak putih -->
+    <div class="absolute inset-0" onclick="document.getElementById('requestModal').classList.add('hidden')"></div>
 
-                    <form action="{{ route('admin.procurement.store') }}" method="POST" class="space-y-4">
-                        @csrf
+    <div class="bg-white rounded-[2rem] border border-slate-300 max-w-md w-full p-8 space-y-4 shadow-2xl text-left relative z-10">
+        <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+            <h3 class="text-base font-black text-slate-900 uppercase font-sans">Form Request Pakaian ke Supplier</h3>
+            <button type="button" onclick="document.getElementById('requestModal').classList.add('hidden')" class="text-slate-400 hover:text-rose-500 text-lg font-black transition-colors cursor-pointer">✕</button>
+        </div>
 
-                        <div class="space-y-1">
-                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Judul Model Pakaian</label>
-                            <input type="text" name="request_title" required placeholder="Contoh: Polo Shirt Polos, Daster Arab" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600">
-                        </div>
+        <form action="{{ route('admin.procurement.store') }}" method="POST" class="space-y-4">
+            @csrf
 
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="space-y-1">
-                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Warna Diminta</label>
-                                <input type="text" name="color" required placeholder="Contoh: Hitam" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600">
-                            </div>
-                            <div class="space-y-1">
-                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Ukuran (Size)</label>
-                                <select name="size" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-black uppercase text-slate-900 focus:ring-2 focus:ring-indigo-600">
-                                    <option value="S">S</option>
-                                    <option value="M" selected>M</option>
-                                    <option value="L">L</option>
-                                    <option value="XL">XL</option>
-                                    <option value="XXL">XXL</option>
-                                    <option value="ALL SIZE">All Size</option>
-                                </select>
-                            </div>
-                        </div>
+            <div class="space-y-1">
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Judul Model Pakaian</label>
+                <input type="text" name="request_title" required placeholder="Contoh: Polo Shirt Polos, Daster Arab" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600">
+            </div>
 
-                        <div class="grid grid-cols-3 gap-3">
-                            <div class="col-span-1 space-y-1">
-                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Qty (Pcs)</label>
-                                <input type="number" name="qty_requested" value="10" min="1" required class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-indigo-600 text-center">
-                            </div>
-                            <div class="col-span-2 space-y-1">
-                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Target Supplier Partner</label>
-                                <select name="target_supplier_id" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 uppercase focus:ring-2 focus:ring-indigo-600">
-                                    <option value="">📢 BROADCAST KE SEMUA</option>
-                                    @foreach($users->where('role', 'supplier') as $spl)
-                                        <option value="{{ $spl->id }}">{{ $spl->brand_name ?? $spl->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-
-                        <button type="submit" class="w-full bg-slate-900 hover:bg-indigo-600 text-white font-black py-3.5 rounded-xl text-xs uppercase tracking-widest transition-all mt-4 shadow-md">📢 Kirim Permintaan Pasokan</button>
-                    </form>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Warna Diminta</label>
+                    <input type="text" name="color" required placeholder="Contoh: Hitam" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600">
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Ukuran (Size)</label>
+                    <select name="size" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-black uppercase text-slate-900 focus:ring-2 focus:ring-indigo-600">
+                        <option value="S">S</option>
+                        <option value="M" selected>M</option>
+                        <option value="L">L</option>
+                        <option value="XL">XL</option>
+                        <option value="XXL">XXL</option>
+                        <option value="ALL SIZE">All Size</option>
+                    </select>
                 </div>
             </div>
+
+            <div class="grid grid-cols-3 gap-3">
+                <div class="col-span-1 space-y-1">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Qty (Pcs)</label>
+                    <input type="number" name="qty_requested" value="10" min="1" required class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-indigo-600 text-center">
+                </div>
+                <div class="col-span-2 space-y-1">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Target Supplier Partner</label>
+                    <select name="target_supplier_id" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 uppercase focus:ring-2 focus:ring-indigo-600">
+                        <option value="">📢 BROADCAST KE SEMUA</option>
+                        @foreach($users->where('role', 'supplier') as $spl)
+                            <option value="{{ $spl->id }}">{{ $spl->brand_name ?? $spl->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            <button type="submit" class="w-full bg-slate-900 hover:bg-indigo-600 text-white font-black py-3.5 rounded-xl text-xs uppercase tracking-widest transition-all mt-4 shadow-md cursor-pointer">📢 Kirim Permintaan Pasokan</button>
+        </form>
+    </div>
+</div>
         </div>
     @elseif($activeTab === 'categories')
         <div class="space-y-6">

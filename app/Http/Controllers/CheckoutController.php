@@ -10,9 +10,6 @@ use App\Models\ProductVariant;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 
-// Impor Library Midtrans
-use Midtrans\Config;
-use Midtrans\Snap;
 
 class CheckoutController extends Controller
 {
