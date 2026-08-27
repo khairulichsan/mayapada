@@ -134,6 +134,3 @@ class MidtransCallbackController extends Controller
 3. Midtrans mengirimkan request **POST** ke URL Notification Anda (lewat Ngrok atau domain publik).
 4. Laravel menerima request tersebut, memverifikasi tanda tangannya (**Signature Key**), dan jika cocok, Laravel memperbarui status pengadaan di tabel database menjadi **success** / **pending** / **failed**.
 
----
-
-Apakah Anda membutuhkan bantuan untuk mengintegrasikan logika penanganan status di atas ke dalam database pengadaan Anda, atau ingin saya menuliskan script migrasi untuk tabel transaksi pembayarannya?
