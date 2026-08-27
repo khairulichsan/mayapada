@@ -1,60 +1,139 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+Untuk mengaktifkan dan mengonfigurasi **Webhook (Notification Callback) Midtrans** pada aplikasi **Mayapada Procurement System**, Anda perlu melakukan penyelarasan antara pengaturan di **Midtrans Dashboard** dan kode **Laravel** Anda. 
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Berikut adalah detail langkah demi langkah konfigurasinya:
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### 1. Konfigurasi URL Notification di Dashboard Midtrans
+Midtrans memerlukan URL publik untuk mengirimkan data transaksi (dalam bentuk HTTP POST) setiap kali status pembayaran berubah (misal dari *pending* menjadi *settlement* atau *expire*).
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+1. Masuk ke **[Midtrans Dashboard](https://dashboard.midtrans.com/)** (gunakan mode *Sandbox* untuk pengembangan, dan *Production* untuk rilis resmi).
+2. Buka menu **Settings** > **Configuration**.
+3. Cari kolom **Payment Notification URL** dan isi dengan URL endpoint Laravel Anda. Contoh formatnya:
+   * **Production:** `https://nama-domain-anda.com/api/midtrans-callback`
+   * **Development (Lokal):** `https://[subdomain-ngrok].ngrok-free.app/api/midtrans-callback`
+4. Simpan perubahan.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+> 💡 **Penting untuk Tahap Pengembangan (Lokal):**
+> Karena Midtrans berjalan di internet dan server lokal Anda berjalan di `http://127.0.0.1:8000`, Midtrans tidak bisa mengirimkan data langsung ke komputer Anda. Anda harus menggunakan tool tunneling seperti **Ngrok** atau **Localtunnel** untuk membuat URL publik sementara:
+> ```bash
+> ngrok http 8000
+> ```
+> Gunakan URL HTTPS yang diberikan oleh Ngrok tersebut untuk diisi di Payment Notification URL Midtrans Dashboard.
 
-## Learning Laravel
+---
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### 2. Konfigurasi Route (Laravel)
+Daftarkan rute penampung data dari Midtrans. Karena ini adalah request eksternal, biasanya diletakkan di dalam file `routes/api.php` agar tidak terkena verifikasi session standar web:
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+```php
+// routes/api.php atau routes/web.php
+use App\Http\Controllers\MidtransCallbackController;
 
-## Laravel Sponsors
+Route::post('/midtrans-callback', [MidtransCallbackController::class, 'handleNotification']);
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+---
 
-### Premium Partners
+### 3. Pengecualian Proteksi CSRF (Wajib)
+Laravel secara default memblokir semua request POST dari luar jika tidak menyertakan token CSRF. Anda harus mengecualikan endpoint callback Midtrans dari proteksi ini.
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+* **Untuk Laravel 11 (terbaru):**
+  Buka file `bootstrap/app.php` dan tambahkan pengecualian pada middleware:
+  ```php
+  ->withMiddleware(function (Middleware $middleware) {
+      $middleware->validateCsrfTokens(except: [
+          '/api/midtrans-callback', // sesuaikan dengan rute Anda
+      ]);
+  })
+  ```
+* **Untuk Laravel 9 atau 10:**
+  Buka file `app/Http/Middleware/VerifyCsrfToken.php` dan tambahkan ke dalam array `$except`:
+  ```php
+  protected $except = [
+      'api/midtrans-callback',
+  ];
+  ```
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 4. Logika Penanganan Webhook (Controller)
+Di dalam controller Anda (misalnya `MidtransCallbackController`), Anda harus melakukan **verifikasi keaslian data** menggunakan **Signature Key** Midtrans untuk mencegah manipulasi data dari pihak luar.
 
-## Code of Conduct
+Berikut struktur logika standar untuk memproses notifikasi tersebut:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```php
+namespace App\Http\Controllers;
 
-## Security Vulnerabilities
+use Illuminate\Http\Request;
+use App\Models\ProcurementRequest; // Contoh model pengadaan
+use Illuminate\Support\Facades\Log;
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+class MidtransCallbackController extends Controller
+{
+    public function handleNotification(Request $request)
+    {
+        // 1. Ambil data mentah payload dari Midtrans
+        $payload = $request->all();
+        
+        $serverKey = config('services.midtrans.server_key'); // Server Key dari .env
+        $orderId = $payload['order_id'];
+        $statusCode = $payload['status_code'];
+        $grossAmount = $payload['gross_amount'];
+        $signatureKey = $payload['signature_key'];
 
-## License
+        // 2. Verifikasi keaslian Signature Key
+        // Rumus: SHA512(order_id + status_code + gross_amount + server_key)
+        $localSignature = hash("sha512", $orderId . $statusCode . $grossAmount . $serverKey);
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-# mayapada
+        if ($signatureKey !== $localSignature) {
+            Log::error('Signature Key Midtrans tidak valid!');
+            return response()->json(['message' => 'Invalid signature'], 403);
+        }
+
+        // 3. Ambil data pengadaan dari database Anda
+        $procurement = ProcurementRequest::where('uuid_pembayaran', $orderId)->first();
+
+        if (!$procurement) {
+            return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
+        }
+
+        // 4. Update status pengadaan berdasarkan status transaksi dari Midtrans
+        $transactionStatus = $payload['transaction_status'];
+        $type = $payload['payment_type'];
+
+        if ($transactionStatus == 'capture') {
+            if ($type == 'credit_card') {
+                if ($payload['fraud_status'] == 'challenge') {
+                    $procurement->update(['status_pembayaran' => 'pending']);
+                } else {
+                    $procurement->update(['status_pembayaran' => 'success']);
+                }
+            }
+        } elseif ($transactionStatus == 'settlement') {
+            // Transaksi sukses (Transfer Bank, Gopay, QRIS, dll)
+            $procurement->update(['status_pembayaran' => 'success']);
+        } elseif ($transactionStatus == 'pending') {
+            // Menunggu pembayaran
+            $procurement->update(['status_pembayaran' => 'pending']);
+        } elseif (in_array($transactionStatus, ['deny', 'expire', 'cancel'])) {
+            // Transaksi gagal atau kedaluwarsa
+            $procurement->update(['status_pembayaran' => 'failed']);
+        }
+
+        return response()->json(['message' => 'Callback processed successfully'], 200);
+    }
+}
+```
+
+---
+
+### Ringkasan Alur Kerja Webhook:
+1. Pembeli melakukan pembayaran pada popup **Snap Midtrans**.
+2. Midtrans memproses pembayaran secara *real-time*.
+3. Midtrans mengirimkan request **POST** ke URL Notification Anda (lewat Ngrok atau domain publik).
+4. Laravel menerima request tersebut, memverifikasi tanda tangannya (**Signature Key**), dan jika cocok, Laravel memperbarui status pengadaan di tabel database menjadi **success** / **pending** / **failed**.
+
+---
+
+Apakah Anda membutuhkan bantuan untuk mengintegrasikan logika penanganan status di atas ke dalam database pengadaan Anda, atau ingin saya menuliskan script migrasi untuk tabel transaksi pembayarannya?
